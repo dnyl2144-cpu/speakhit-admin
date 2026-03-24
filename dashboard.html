@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpeakHit Admin</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a1a; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+  .header { background: linear-gradient(135deg, #1a1a2e, #16213e); padding: 20px 32px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #2d2d4e; }
+  .logo { font-size: 24px; font-weight: 800; }
+  .logo span { background: linear-gradient(135deg, #a855f7, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .badge { background: #1e1e3a; border: 1px solid #3d3d6b; padding: 6px 14px; border-radius: 20px; font-size: 13px; color: #a855f7; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+  .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 28px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+  .card { background: #111827; border: 1px solid #1f2937; border-radius: 16px; padding: 24px; }
+  .card h3 { font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+  .stat-value { font-size: 36px; font-weight: 800; background: linear-gradient(135deg, #a855f7, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .stat-sub { font-size: 13px; color: #4b5563; margin-top: 4px; }
+  .chart-wrap { position: relative; height: 220px; }
+  .refresh-btn { background: linear-gradient(135deg, #a855f7, #7c3aed); border: none; border-radius: 10px; padding: 10px 20px; color: white; font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; }
+  .refresh-btn:hover { opacity: 0.85; }
+  .refresh-btn:disabled { opacity: 0.4; cursor: default; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: right; padding: 10px 12px; font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #1f2937; }
+  td { padding: 12px; font-size: 13px; border-bottom: 1px solid #111827; color: #d1d5db; }
+  tr:hover td { background: #1a2030; }
+  .lang-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .lang-he { background: #312e81; color: #a5b4fc; }
+  .lang-en { background: #064e3b; color: #6ee7b7; }
+  .lang-ru { background: #7f1d1d; color: #fca5a5; }
+  .credits-bar { background: #1f2937; border-radius: 8px; height: 10px; overflow: hidden; margin-top: 8px; }
+  .credits-fill { height: 100%; border-radius: 8px; background: linear-gradient(90deg, #a855f7, #ec4899); transition: width 0.5s; }
+  .loading { text-align: center; color: #6b7280; padding: 60px; font-size: 16px; }
+  .error { color: #ef4444; text-align: center; padding: 20px; }
+  .section-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; color: #f9fafb; }
+  .time-ago { color: #4b5563; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo">Speak<span>Hit</span> <span style="font-size:14px;color:#6b7280;font-weight:400;">Admin Dashboard</span></div>
+  <div style="display:flex;gap:12px;align-items:center;">
+    <span class="badge" id="last-update">טוען...</span>
+    <button class="refresh-btn" onclick="loadStats()" id="refresh-btn">🔄 רענן</button>
+  </div>
+</div>
+
+<div class="container">
+  <div id="loading" class="loading">⏳ טוען נתונים...</div>
+  <div id="content" style="display:none;">
+
+    <!-- KPI Cards -->
+    <div class="grid-5">
+      <div class="card">
+        <h3>סה״כ שירים</h3>
+        <div class="stat-value" id="total-songs">-</div>
+        <div class="stat-sub">מאז ההשקה</div>
+      </div>
+      <div class="card">
+        <h3>שירים היום</h3>
+        <div class="stat-value" id="songs-today">-</div>
+        <div class="stat-sub">24 שעות אחרונות</div>
+      </div>
+      <div class="card">
+        <h3>סה״כ סשנים</h3>
+        <div class="stat-value" id="total-sessions">-</div>
+        <div class="stat-sub">כולל לא הושלמו</div>
+      </div>
+      <div class="card">
+        <h3>משתמשים רשומים</h3>
+        <div class="stat-value" id="total-users">-</div>
+        <div class="stat-sub">עם חשבון</div>
+      </div>
+      <div class="card">
+        <h3>זמן יצירה ממוצע</h3>
+        <div class="stat-value" id="avg-duration">-</div>
+        <div class="stat-sub">שניות לשיר</div>
+      </div>
+    </div>
+
+    <!-- Charts + Credits -->
+    <div class="grid-2">
+      <div class="card">
+        <p class="section-title">שפות פופולריות</p>
+        <div class="chart-wrap"><canvas id="lang-chart"></canvas></div>
+      </div>
+      <div class="card">
+        <p class="section-title">קרדיטים</p>
+        <div id="credits-section">
+          <div style="margin-bottom:20px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <span style="font-size:14px;color:#d1d5db;">ElevenLabs</span>
+              <span style="font-size:13px;color:#a855f7;" id="el-text">-</span>
+            </div>
+            <div class="credits-bar"><div class="credits-fill" id="el-bar" style="width:0%"></div></div>
+          </div>
+          <div style="background:#1f2937;border-radius:12px;padding:16px;margin-top:12px;">
+            <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">Supabase</div>
+            <div style="font-size:14px;color:#34d399;">✅ מחובר ופעיל</div>
+          </div>
+          <div style="background:#1f2937;border-radius:12px;padding:16px;margin-top:12px;">
+            <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">מודל נוכחי</div>
+            <div style="font-size:18px;font-weight:700;color:#a855f7;">Suno V5</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Songs -->
+    <div class="card">
+      <p class="section-title">שירים אחרונים</p>
+      <table>
+        <thead>
+          <tr>
+            <th>כותרת</th>
+            <th>שפה</th>
+            <th>ז׳אנר</th>
+            <th>זמן יצירה</th>
+            <th>תאריך</th>
+          </tr>
+        </thead>
+        <tbody id="recent-songs">
+          <tr><td colspan="5" style="text-align:center;color:#6b7280;">טוען...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<!-- Users Table -->
+<div class="card" style="margin-top:20px;">
+  <p class="section-title">משתמשים אחרונים</p>
+  <table>
+    <thead>
+      <tr>
+        <th>אימייל</th>
+        <th>שירים שיצר</th>
+        <th>כניסה אחרונה</th>
+      </tr>
+    </thead>
+    <tbody id="users-table">
+      <tr><td colspan="3" style="text-align:center;color:#6b7280;">טוען...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+const API = 'https://speakhit.onrender.com';
+let langChart = null;
+
+function timeAgo(dateStr) {
+  const diff = (Date.now() - new Date(dateStr)) / 1000;
+  if (diff < 60) return `לפני ${Math.floor(diff)} שניות`;
+  if (diff < 3600) return `לפני ${Math.floor(diff/60)} דקות`;
+  if (diff < 86400) return `לפני ${Math.floor(diff/3600)} שעות`;
+  return `לפני ${Math.floor(diff/86400)} ימים`;
+}
+
+function langBadge(lang) {
+  const map = {he:'עב', en:'EN', ru:'RU'};
+  const cls = {he:'lang-he', en:'lang-en', ru:'lang-ru'}[lang] || '';
+  return `<span class="lang-badge ${cls}">${map[lang]||lang||'-'}</span>`;
+}
+
+async function loadStats() {
+  const btn = document.getElementById('refresh-btn');
+  btn.disabled = true; btn.textContent = '⏳ טוען...';
+  try {
+    const res = await fetch(`${API}/admin/stats`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    document.getElementById('total-songs').textContent = data.total_songs ?? 0;
+    document.getElementById('songs-today').textContent = data.songs_today ?? 0;
+    document.getElementById('total-sessions').textContent = data.total_sessions ?? 0;
+    document.getElementById('avg-duration').textContent = data.avg_generation_seconds ? `${data.avg_generation_seconds}s` : '-';
+
+    // ElevenLabs credits
+    if (data.elevenlabs_credits) {
+      const used = data.elevenlabs_credits.used;
+      const limit = data.elevenlabs_credits.limit;
+      const pct = limit > 0 ? Math.round(used/limit*100) : 0;
+      const remaining = limit - used;
+      document.getElementById('el-text').textContent = `${remaining.toLocaleString()} נותרו (${100-pct}%)`;
+      document.getElementById('el-bar').style.width = `${pct}%`;
+    }
+
+    // Lang chart
+    const langs = data.lang_breakdown || {};
+    const labels = Object.keys(langs).map(l => ({he:'עברית',en:'אנגלית',ru:'רוסית'}[l]||l));
+    const values = Object.values(langs);
+    if (langChart) langChart.destroy();
+    const ctx = document.getElementById('lang-chart').getContext('2d');
+    langChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{ data: values, backgroundColor: ['#a855f7','#3b82f6','#ef4444','#10b981'], borderWidth: 0 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af', font: { size: 13 } } } }
+      }
+    });
+
+    // Recent songs table
+    const tbody = document.getElementById('recent-songs');
+    if (data.recent_songs && data.recent_songs.length > 0) {
+      tbody.innerHTML = data.recent_songs.map(s => `
+        <tr>
+          <td style="font-weight:600;color:#f9fafb;">${s.title || '-'}</td>
+          <td>${langBadge(s.lang)}</td>
+          <td style="color:#9ca3af;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.genre || '-'}</td>
+          <td>${s.duration_seconds ? `${s.duration_seconds}s` : '-'}</td>
+          <td class="time-ago">${timeAgo(s.created_at)}</td>
+        </tr>`).join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#6b7280;">עדיין אין שירים מתועדים</td></tr>';
+    }
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+    document.getElementById('last-update').textContent = `עודכן: ${new Date().toLocaleTimeString('he-IL')}`;
+    
+    // Total users
+    if (data.total_users !== undefined) {
+      document.getElementById('total-users').textContent = data.total_users;
+    }
+
+    // Users table
+    if (data.recent_logins && data.recent_logins.length > 0) {
+      // Count songs per user
+      const songCount = {};
+      (data.user_songs || []).forEach(s => {
+        const email = s.email || 'unknown';
+        songCount[email] = (songCount[email] || 0) + 1;
+      });
+      
+      // Dedupe by email, keep latest login
+      const userMap = {};
+      data.recent_logins.forEach(u => {
+        if (!userMap[u.email] || new Date(u.created_at) > new Date(userMap[u.email].created_at)) {
+          userMap[u.email] = u;
+        }
+      });
+      
+      const tbody = document.getElementById('users-table');
+      tbody.innerHTML = Object.values(userMap).map(u => `
+        <tr>
+          <td style="font-weight:600;color:#f9fafb;">${u.email || '-'}</td>
+          <td><span style="background:#312e81;color:#a5b4fc;padding:3px 10px;border-radius:12px;font-size:12px;">${songCount[u.email] || 0} שירים</span></td>
+          <td class="time-ago">${timeAgo(u.created_at)}</td>
+        </tr>`).join('');
+    }
+  } catch(e) {
+    document.getElementById('loading').innerHTML = `<div class="error">❌ שגיאה: ${e.message}</div>`;
+  }
+  btn.disabled = false; btn.textContent = '🔄 רענן';
+}
+
+loadStats();
+setInterval(loadStats, 60000);
+</script>
+</body>
+</html>
