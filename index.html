@@ -272,12 +272,16 @@ async function loadStats() {
       if (a.metadata?.is_new_user) userMap[e].isNew = true;
       if (a.metadata?.session_duration_seconds) userMap[e].totalDur += a.metadata.session_duration_seconds;
     });
+    // Update total_users count
+    if (Object.keys(userMap).length > 0) {
+      document.getElementById('total-users').textContent = Object.keys(userMap).length;
+    }
     const now = Date.now();
     const utbody = document.getElementById('users-table');
     const users = Object.values(userMap);
     if (users.length > 0) {
       utbody.innerHTML = users.sort((a,b)=>new Date(b.last)-new Date(a.last)).map(u => {
-        const online = (now - new Date(u.last)) < 5*60*1000;
+        const online = (now - new Date(u.last)) < 2*60*1000; // online = heartbeat in last 2min
         const dur = Math.floor(u.totalDur/60);
         return `<tr>
           <td style="font-weight:600;color:#f9fafb;">${u.email}${u.isNew?' <span style="background:#065f46;color:#6ee7b7;padding:2px 6px;border-radius:8px;font-size:10px;">חדש</span>':''}</td>
@@ -293,10 +297,11 @@ async function loadStats() {
     }
 
     // Activity log
-    const evMap = {login:'🔑 כניסה',logout:'🚪 יציאה',session_start:'▶️ התחיל',song_generated:'🎵 שיר',session_end:'⏹ סיום'};
+    const evMap = {login:'🔑 כניסה',logout:'🚪 יציאה',session_start:'▶️ התחיל',song_generated:'🎵 שיר',session_end:'⏹ סיום',heartbeat:null};
     const logTbody = document.getElementById('activity-log');
-    if (allActivity.length > 0) {
-      logTbody.innerHTML = allActivity.slice(0,50).map(a => {
+    const filteredActivity = allActivity.filter(a => a.event !== 'heartbeat');
+    if (filteredActivity.length > 0) {
+      logTbody.innerHTML = filteredActivity.slice(0,50).map(a => {
         let det = '';
         if (a.metadata?.session_duration_seconds) det = Math.floor(a.metadata.session_duration_seconds/60)+" דק'";
         if (a.metadata?.title) det = a.metadata.title;
