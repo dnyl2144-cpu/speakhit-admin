@@ -169,6 +169,19 @@
 </div>
 
 <script>
+// Password protection
+(function() {
+  const saved = sessionStorage.getItem('sh_auth');
+  if (saved !== 'ok') {
+    const pwd = prompt('🔐 סיסמה:');
+    if (pwd !== 'speakhit19851122') {
+      document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#0a0a1a;color:#ef4444;font-size:24px;">❌ גישה נדחתה</div>';
+      throw new Error('Unauthorized');
+    }
+    sessionStorage.setItem('sh_auth', 'ok');
+  }
+})();
+
 const API = 'https://speakhit.onrender.com';
 let langChart = null;
 
