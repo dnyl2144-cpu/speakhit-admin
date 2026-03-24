@@ -116,9 +116,9 @@
           <div id="deploy-commit" style="font-size:12px;color:#9ca3af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
           <div id="deploy-time" style="font-size:11px;color:#4b5563;margin-top:3px;"></div>
         </div>
-        <div style="background:#1f2937;border-radius:12px;padding:12px 16px;">
+        <div style="background:#1f2937;border-radius:12px;padding:12px 16px;margin-bottom:10px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <span style="font-size:13px;color:#6b7280;">מודל נוכחי</span>
+            <span style="font-size:13px;color:#6b7280;">מודל מוזיקה</span>
             <span style="font-size:15px;font-weight:700;color:#a855f7;" id="current-model-label">טוען...</span>
           </div>
           <div style="display:flex;gap:8px;">
@@ -126,6 +126,17 @@
             <button onclick="switchModel('udio')" id="btn-udio" style="flex:1;padding:8px;border-radius:8px;border:1px solid #374151;background:#111827;color:white;cursor:pointer;font-size:13px;font-weight:600;">🎶 Udio</button>
           </div>
           <p id="model-switch-msg" style="font-size:11px;color:#6b7280;margin-top:6px;text-align:center;"></p>
+        </div>
+        <div style="background:#1f2937;border-radius:12px;padding:12px 16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <span style="font-size:13px;color:#6b7280;">קול הצ׳אט (TTS)</span>
+            <span style="font-size:15px;font-weight:700;color:#a855f7;" id="current-tts-label">טוען...</span>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="switchTTS('elevenlabs')" id="btn-el" style="flex:1;padding:8px;border-radius:8px;border:1px solid #374151;background:#111827;color:white;cursor:pointer;font-size:13px;font-weight:600;">🎙️ ElevenLabs</button>
+            <button onclick="switchTTS('webspeech')" id="btn-ws" style="flex:1;padding:8px;border-radius:8px;border:1px solid #374151;background:#111827;color:white;cursor:pointer;font-size:13px;font-weight:600;">🔊 Web Speech</button>
+          </div>
+          <p id="tts-switch-msg" style="font-size:11px;color:#6b7280;margin-top:6px;text-align:center;">Web Speech = חינמי, ElevenLabs = איכות גבוהה</p>
         </div>
       </div>
     </div>
@@ -371,6 +382,48 @@ function updateModelButtons(model) {
   }
 }
 
+async function switchTTS(engine) {
+  const msg = document.getElementById('tts-switch-msg');
+  msg.textContent = '⏳ מחליף...';
+  msg.style.color = '#a855f7';
+  try {
+    const r = await fetch(`${API}/switch-tts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ engine })
+    });
+    const data = await r.json();
+    if (data.ok) {
+      msg.textContent = `✅ עבר ל-${engine === 'elevenlabs' ? 'ElevenLabs' : 'Web Speech'}`;
+      msg.style.color = '#34d399';
+      updateTTSButtons(engine);
+    } else {
+      msg.textContent = `❌ ${data.error || 'שגיאה'}`;
+      msg.style.color = '#ef4444';
+    }
+  } catch(e) {
+    msg.textContent = '❌ שגיאת חיבור';
+    msg.style.color = '#ef4444';
+  }
+  setTimeout(() => { msg.textContent = 'Web Speech = חינמי, ElevenLabs = איכות גבוהה'; msg.style.color = '#6b7280'; }, 3000);
+}
+
+function updateTTSButtons(engine) {
+  const label = document.getElementById('current-tts-label');
+  const btnEl = document.getElementById('btn-el');
+  const btnWs = document.getElementById('btn-ws');
+  if (!label) return;
+  if (engine === 'elevenlabs') {
+    label.textContent = 'ElevenLabs';
+    btnEl.style.background = '#312e81'; btnEl.style.borderColor = '#a855f7';
+    btnWs.style.background = '#111827'; btnWs.style.borderColor = '#374151';
+  } else {
+    label.textContent = 'Web Speech';
+    btnWs.style.background = '#312e81'; btnWs.style.borderColor = '#a855f7';
+    btnEl.style.background = '#111827'; btnEl.style.borderColor = '#374151';
+  }
+}
+
 async function loadCurrentModel() {
   try {
     const r = await fetch(`${API}/current-model`);
@@ -379,8 +432,17 @@ async function loadCurrentModel() {
   } catch(e) {}
 }
 
+async function loadCurrentTTS() {
+  try {
+    const r = await fetch(`${API}/current-tts`);
+    const data = await r.json();
+    updateTTSButtons(data.engine || 'elevenlabs');
+  } catch(e) {}
+}
+
 loadStats();
 loadCurrentModel();
+loadCurrentTTS();
 loadDeployStatus();
 setInterval(loadStats, 60000);
 setInterval(loadDeployStatus, 30000);
