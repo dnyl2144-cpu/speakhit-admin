@@ -104,9 +104,16 @@
           <span style="font-size:13px;color:#6b7280;">Supabase</span>
           <span style="font-size:13px;color:#34d399;">✅ פעיל</span>
         </div>
-        <div style="background:#1f2937;border-radius:12px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-size:13px;color:#6b7280;">מודל נוכחי</span>
-          <span style="font-size:15px;font-weight:700;color:#a855f7;">Suno V5</span>
+        <div style="background:#1f2937;border-radius:12px;padding:12px 16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <span style="font-size:13px;color:#6b7280;">מודל נוכחי</span>
+            <span style="font-size:15px;font-weight:700;color:#a855f7;" id="current-model-label">טוען...</span>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="switchModel('suno')" id="btn-suno" style="flex:1;padding:8px;border-radius:8px;border:1px solid #374151;background:#111827;color:white;cursor:pointer;font-size:13px;font-weight:600;">🎵 Suno V5</button>
+            <button onclick="switchModel('udio')" id="btn-udio" style="flex:1;padding:8px;border-radius:8px;border:1px solid #374151;background:#111827;color:white;cursor:pointer;font-size:13px;font-weight:600;">🎶 Udio</button>
+          </div>
+          <p id="model-switch-msg" style="font-size:11px;color:#6b7280;margin-top:6px;text-align:center;"></p>
         </div>
       </div>
     </div>
@@ -268,7 +275,58 @@ async function loadStats() {
   btn.disabled = false; btn.textContent = '🔄 רענן';
 }
 
+async function switchModel(model) {
+  const msg = document.getElementById('model-switch-msg');
+  msg.textContent = '⏳ מחליף מודל...';
+  msg.style.color = '#a855f7';
+  try {
+    const r = await fetch(`${API}/switch-model`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model })
+    });
+    const data = await r.json();
+    if (data.ok) {
+      msg.textContent = `✅ עבר ל-${model === 'suno' ? 'Suno V5' : 'Udio'}`;
+      msg.style.color = '#34d399';
+      updateModelButtons(model);
+    } else {
+      msg.textContent = `❌ ${data.error || 'שגיאה'}`;
+      msg.style.color = '#ef4444';
+    }
+  } catch(e) {
+    msg.textContent = '❌ שגיאת חיבור';
+    msg.style.color = '#ef4444';
+  }
+  setTimeout(() => { msg.textContent = ''; }, 3000);
+}
+
+function updateModelButtons(model) {
+  const label = document.getElementById('current-model-label');
+  const btnSuno = document.getElementById('btn-suno');
+  const btnUdio = document.getElementById('btn-udio');
+  if (!label) return;
+  if (model === 'suno') {
+    label.textContent = 'Suno V5';
+    btnSuno.style.background = '#312e81'; btnSuno.style.borderColor = '#a855f7';
+    btnUdio.style.background = '#111827'; btnUdio.style.borderColor = '#374151';
+  } else {
+    label.textContent = 'Udio';
+    btnUdio.style.background = '#312e81'; btnUdio.style.borderColor = '#a855f7';
+    btnSuno.style.background = '#111827'; btnSuno.style.borderColor = '#374151';
+  }
+}
+
+async function loadCurrentModel() {
+  try {
+    const r = await fetch(`${API}/current-model`);
+    const data = await r.json();
+    updateModelButtons(data.model || 'suno');
+  } catch(e) {}
+}
+
 loadStats();
+loadCurrentModel();
 setInterval(loadStats, 60000);
 </script>
 </body>
