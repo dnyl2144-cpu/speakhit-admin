@@ -101,6 +101,10 @@
           <span style="font-size:13px;color:#a855f7;" id="suno-text">-</span>
         </div>
         <div style="background:#1f2937;border-radius:12px;padding:12px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="font-size:13px;color:#d1d5db;">Udio API</span>
+          <span style="font-size:13px;color:#a855f7;" id="udio-credits-text">-</span>
+        </div>
+        <div style="background:#1f2937;border-radius:12px;padding:12px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:13px;color:#6b7280;">Supabase</span>
           <span style="font-size:13px;color:#34d399;">✅ פעיל</span>
         </div>
@@ -185,6 +189,14 @@ async function loadStats() {
     }
     if (data.suno_credits !== null && data.suno_credits !== undefined) {
       document.getElementById('suno-text').textContent = `${data.suno_credits} קרדיטים`;
+    }
+    if (data.udio_credits !== null && data.udio_credits !== undefined) {
+      const udioEl = document.getElementById('udio-credits-text');
+      if (udioEl) {
+        const remaining = data.udio_credits.credits ?? '-';
+        const used = data.udio_credits.used_credits ?? 0;
+        udioEl.textContent = `${remaining} נותרו (${used} נוצלו)`;
+      }
     }
 
     // Lang chart
