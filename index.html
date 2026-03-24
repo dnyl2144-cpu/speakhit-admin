@@ -137,19 +137,40 @@
   </div>
 </div>
 
-<!-- Users Table -->
+<!-- Users Summary -->
 <div class="card" style="margin-top:20px;">
-  <p class="section-title">משתמשים אחרונים</p>
+  <p class="section-title">משתמשים — סיכום</p>
   <table>
     <thead>
       <tr>
         <th>אימייל</th>
-        <th>שירים שיצר</th>
+        <th>סטטוס</th>
+        <th>שירים</th>
+        <th>זמן שימוש</th>
+        <th>כניסה ראשונה</th>
         <th>כניסה אחרונה</th>
       </tr>
     </thead>
     <tbody id="users-table">
-      <tr><td colspan="3" style="text-align:center;color:#6b7280;">טוען...</td></tr>
+      <tr><td colspan="6" style="text-align:center;color:#6b7280;">טוען...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Activity Log -->
+<div class="card" style="margin-top:20px;">
+  <p class="section-title">לוג פעילות</p>
+  <table>
+    <thead>
+      <tr>
+        <th>אימייל</th>
+        <th>אירוע</th>
+        <th>פרטים</th>
+        <th>תאריך ושעה</th>
+      </tr>
+    </thead>
+    <tbody id="activity-log">
+      <tr><td colspan="4" style="text-align:center;color:#6b7280;">טוען...</td></tr>
     </tbody>
   </table>
 </div>
@@ -242,30 +263,68 @@ async function loadStats() {
       document.getElementById('total-users').textContent = data.total_users;
     }
 
-    // Users table
-    if (data.recent_logins && data.recent_logins.length > 0) {
-      // Count songs per user
+    // Users summary table
+    if (data.recent_logins) {
       const songCount = {};
       (data.user_songs || []).forEach(s => {
         const email = s.email || 'unknown';
         songCount[email] = (songCount[email] || 0) + 1;
       });
-      
-      // Dedupe by email, keep latest login
+
+      // Build user map with first/last login and total duration
       const userMap = {};
-      data.recent_logins.forEach(u => {
-        if (!userMap[u.email] || new Date(u.created_at) > new Date(userMap[u.email].created_at)) {
-          userMap[u.email] = u;
-        }
+      const allActivity = data.all_activity || [];
+      allActivity.forEach(a => {
+        const email = a.email || 'unknown';
+        if (!userMap[email]) userMap[email] = { email, first: a.created_at, last: a.created_at, totalDuration: 0, isNew: false };
+        if (new Date(a.created_at) < new Date(userMap[email].first)) userMap[email].first = a.created_at;
+        if (new Date(a.created_at) > new Date(userMap[email].last)) userMap[email].last = a.created_at;
+        if (a.event === 'login' && a.metadata?.is_new_user) userMap[email].isNew = true;
+        if (a.metadata?.session_duration_seconds) userMap[email].totalDuration += a.metadata.session_duration_seconds;
       });
-      
+
+      // Check online status (active in last 5 min)
+      const now = Date.now();
       const tbody = document.getElementById('users-table');
-      tbody.innerHTML = Object.values(userMap).map(u => `
-        <tr>
-          <td style="font-weight:600;color:#f9fafb;">${u.email || '-'}</td>
-          <td><span style="background:#312e81;color:#a5b4fc;padding:3px 10px;border-radius:12px;font-size:12px;">${songCount[u.email] || 0} שירים</span></td>
-          <td class="time-ago">${timeAgo(u.created_at)}</td>
-        </tr>`).join('');
+      const users = Object.values(userMap);
+      if (users.length > 0) {
+        tbody.innerHTML = users.sort((a,b) => new Date(b.last) - new Date(a.last)).map(u => {
+          const isOnline = (now - new Date(u.last)) < 5 * 60 * 1000;
+          const durMin = Math.floor(u.totalDuration / 60);
+          const songs = songCount[u.email] || 0;
+          return `<tr>
+            <td style="font-weight:600;color:#f9fafb;">${u.email}${u.isNew ? ' <span style="background:#065f46;color:#6ee7b7;padding:2px 6px;border-radius:8px;font-size:10px;">חדש</span>' : ''}</td>
+            <td><span style="width:8px;height:8px;border-radius:50%;background:${isOnline?'#34d399':'#6b7280'};display:inline-block;margin-left:6px;"></span>${isOnline?'<span style="color:#34d399">Online</span>':'<span style="color:#6b7280">Offline</span>'}</td>
+            <td><span style="background:#312e81;color:#a5b4fc;padding:3px 8px;border-radius:8px;font-size:12px;">${songs} 🎵</span></td>
+            <td style="color:#9ca3af;">${durMin > 0 ? durMin + ' דק'' : '-'}</td>
+            <td class="time-ago">${timeAgo(u.first)}</td>
+            <td class="time-ago">${timeAgo(u.last)}</td>
+          </tr>`;
+        }).join('');
+      } else {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#6b7280;">אין משתמשים עדיין</td></tr>';
+      }
+
+      // Activity log
+      const logTbody = document.getElementById('activity-log');
+      const eventMap = { login:'🔑 כניסה', logout:'🚪 יציאה', session_start:'▶️ התחיל', song_generated:'🎵 שיר', session_end:'⏹ סיום' };
+      if (allActivity.length > 0) {
+        logTbody.innerHTML = allActivity.slice(0,50).map(a => {
+          const evLabel = eventMap[a.event] || a.event;
+          let details = '';
+          if (a.metadata?.session_duration_seconds) details = `${Math.floor(a.metadata.session_duration_seconds/60)} דק'`;
+          if (a.metadata?.title) details = a.metadata.title;
+          if (a.metadata?.is_new_user) details = '👋 משתמש חדש';
+          return `<tr>
+            <td style="color:#f9fafb;">${a.email || '-'}</td>
+            <td>${evLabel}</td>
+            <td style="color:#9ca3af;">${details}</td>
+            <td class="time-ago">${new Date(a.created_at).toLocaleString('he-IL')}</td>
+          </tr>`;
+        }).join('');
+      } else {
+        logTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#6b7280;">אין פעילות עדיין</td></tr>';
+      }
     }
   } catch(e) {
     document.getElementById('loading').innerHTML = `<div class="error">❌ שגיאה: ${e.message}</div>`;
