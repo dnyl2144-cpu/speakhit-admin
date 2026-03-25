@@ -261,71 +261,44 @@ async function loadStats() {
       document.getElementById('total-users').textContent = data.total_users;
     }
 
-    // Users table — build from all_activity (richer data)
-    const allActivity = data.all_activity || [];
-    const userMap = {};
-    allActivity.forEach(row => {
-      const uid = row.user_id || '';
-      const email = row.email || '';
-      const isAnon = uid.startsWith('anon_') || !email;
-      if (isAnon) return; // skip anonymous
-      if (!userMap[uid]) userMap[uid] = { email, uid, sessions: 0, songs: 0, last_seen: row.created_at };
-      if (new Date(row.created_at) > new Date(userMap[uid].last_seen)) userMap[uid].last_seen = row.created_at;
-      if (row.event === 'session_start') userMap[uid].sessions++;
-      if (row.event === 'song_generated') userMap[uid].songs++;
-    });
-    // Also count from user_songs fallback
-    (data.user_songs || []).forEach(s => {
-      const uid = s.user_id || '';
-      const email = s.email || '';
-      if (!uid || uid.startsWith('anon_') || !email) return;
-      if (!userMap[uid]) userMap[uid] = { email, uid, sessions: 0, songs: 0, last_seen: s.created_at };
-      userMap[uid].songs++;
-    });
-    const usersArr = Object.values(userMap).sort((a,b) => new Date(b.last_seen) - new Date(a.last_seen));
+    // Users table — build from recent_logins (auth.users data)
+    const recentLogins = data.recent_logins || [];
     const tbody2 = document.getElementById('users-table');
-    if (usersArr.length > 0) {
-      tbody2.innerHTML = usersArr.map(u => `
+    if (recentLogins.length > 0) {
+      tbody2.innerHTML = recentLogins.map(u => `
         <tr>
           <td style="font-weight:600;color:#f9fafb;">${u.email}</td>
-          <td><span style="background:#312e81;color:#a5b4fc;padding:3px 10px;border-radius:12px;font-size:12px;">${u.songs} שירים</span></td>
-          <td style="color:#6b7280;font-size:12px;">${u.sessions} סשנים</td>
-          <td class="time-ago">${timeAgo(u.last_seen)}</td>
+          <td><span style="background:#312e81;color:#a5b4fc;padding:3px 10px;border-radius:12px;font-size:12px;">-</span></td>
+          <td style="color:#6b7280;font-size:12px;">-</td>
+          <td class="time-ago">${timeAgo(u.last_sign_in || u.created_at)}</td>
         </tr>`).join('');
     } else {
       tbody2.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#6b7280;">אין משתמשים רשומים עדיין</td></tr>';
     }
-    // Update total_users KPI with real registered count
-    if (usersArr.length > 0) {
-      document.getElementById('total-users').textContent = usersArr.length;
-    }
-    // Activity log
+    // Update total_users KPI
+    document.getElementById('total-users').textContent = data.total_users ?? recentLogins.length;
+    // Activity log — בנה מ-recent_songs + recent_logins כי all_activity ריק
     const actTbody = document.getElementById('activity-log');
     if (actTbody) {
-      const activity = (data.all_activity || []).slice(0, 50);
-      if (activity.length > 0) {
-        const eventLabels = {
-          session_start: '🟢 סשן התחיל',
-          song_generated: '🎵 שיר נוצר',
-          heartbeat: '💓 פעיל',
-          login: '🔑 כניסה',
-          logout: '🚪 יציאה'
-        };
-        actTbody.innerHTML = activity.map(row => {
-          const isAnon = !row.email || (row.user_id || '').startsWith('anon_');
-          const emailDisplay = isAnon
-            ? `<span style="color:#4b5563;font-size:11px;">אנונימי</span>`
-            : `<span style="color:#f9fafb;">${row.email}</span>`;
-          const eventLabel = eventLabels[row.event] || row.event;
-          const meta = row.metadata && Object.keys(row.metadata).length
-            ? `<span style="color:#6b7280;font-size:11px;">${JSON.stringify(row.metadata).slice(0,60)}</span>` : '';
-          return `<tr>
-            <td>${emailDisplay}</td>
-            <td>${eventLabel}</td>
-            <td>${meta}</td>
-            <td class="time-ago">${timeAgo(row.created_at)}</td>
-          </tr>`;
-        }).join('');
+      const actRows = [];
+      // הוסף שירים
+      (data.recent_songs || []).forEach(s => {
+        actRows.push({ email: '-', event: '🎵 שיר נוצר', detail: s.title || '', time: s.created_at });
+      });
+      // הוסף כניסות
+      (data.recent_logins || []).forEach(u => {
+        actRows.push({ email: u.email, event: '🔑 כניסה', detail: '', time: u.last_sign_in || u.created_at });
+      });
+      // מיין לפי זמן
+      actRows.sort((a,b) => new Date(b.time) - new Date(a.time));
+      if (actRows.length > 0) {
+        actTbody.innerHTML = actRows.map(row => `
+          <tr>
+            <td style="color:#f9fafb;">${row.email}</td>
+            <td>${row.event}</td>
+            <td style="color:#6b7280;font-size:11px;">${row.detail}</td>
+            <td class="time-ago">${timeAgo(row.time)}</td>
+          </tr>`).join('');
       } else {
         actTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#6b7280;">אין פעילות מתועדת עדיין</td></tr>';
       }
